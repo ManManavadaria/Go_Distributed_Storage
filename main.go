@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 
 	"github.com/ManManavadaria/Go_Distributed_Storage/p2p"
@@ -12,4 +13,8 @@ func main() {
 	if err := tr.ListenAndAccept(); err != nil {
 		log.Fatal(err)
 	}
+
+	fmt.Println("hello server")
+
+	// select {}
 }

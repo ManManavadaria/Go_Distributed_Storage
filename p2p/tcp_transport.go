@@ -9,8 +9,11 @@ import (
 type TCPTransport struct {
 	listenAddress string
 	listener      net.Listener
-	mu            sync.RWMutex
-	peers         map[net.Addr]Peer
+	shakeHands    HandshakeFunc
+	decoder       Decoder
+
+	mu    sync.RWMutex
+	peers map[net.Addr]Peer
 }
 
 type TCPPeer struct {
@@ -20,6 +23,7 @@ type TCPPeer struct {
 
 func NewTCPTransport(listenAddr string) *TCPTransport {
 	return &TCPTransport{
+		shakeHands:    NOPHandshakeFunc,
 		listenAddress: listenAddr,
 	}
 }
@@ -54,8 +58,22 @@ func (t *TCPTransport) startAcceptLoop() {
 	}
 }
 
+type Temp struct{}
+
 func (t *TCPTransport) handleConn(conn net.Conn) {
 	peer := NewTCPPeer(conn, true)
 
-	fmt.Println("new conn", peer)
+	if err := t.shakeHands(peer); err != nil {
+		conn.Close()
+		return
+	}
+
+	msg := &Temp{}
+
+	for {
+		if err := t.decoder.Decode(conn, msg); err != nil {
+
+			fmt.Println("new conn", peer)
+		}
+	}
 }
