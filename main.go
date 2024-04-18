@@ -8,7 +8,13 @@ import (
 )
 
 func main() {
-	tr := p2p.NewTCPTransport(":3000")
+	tcpopts := p2p.TCPTransportOpts{
+		ListenAddress: ":3000",
+		Decoder:       p2p.GOBDecoder{},
+		ShakeHands:    p2p.NOPHandshakeFunc,
+	}
+
+	tr := p2p.NewTCPTransport(tcpopts)
 
 	if err := tr.ListenAndAccept(); err != nil {
 		log.Fatal(err)
@@ -16,5 +22,5 @@ func main() {
 
 	fmt.Println("hello server")
 
-	// select {}
+	select {}
 }
