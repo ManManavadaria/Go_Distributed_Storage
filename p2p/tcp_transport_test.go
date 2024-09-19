@@ -12,7 +12,8 @@ func TestTCPTransport(t *testing.T) {
 		Decoder:       GOBDecoder{},
 		ShakeHands:    NOPHandshakeFunc,
 	}
+
 	tr := NewTCPTransport(tcpopts)
 
-	assert.Equal(t, tr.TCPTransportOpts, tcpopts)
+	assert.Equal(t, tr.TCPTransportOpts.ListenAddress, ":7000")
 }

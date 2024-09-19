@@ -1,5 +1,8 @@
 package p2p
 
-type Message struct {
+import "net"
+
+type RPC struct {
+	From    net.Addr
 	Payload []byte
 }
