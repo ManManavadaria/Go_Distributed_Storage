@@ -1,7 +1,9 @@
 package p2p
 
 import (
+	"errors"
 	"fmt"
+	"log"
 	"net"
 	"sync"
 )
@@ -45,20 +47,46 @@ func (p *TCPPeer) Close() error {
 	return p.conn.Close()
 }
 
+func (p *TCPPeer) Send(b []byte) error {
+	_, err := p.conn.Write(b)
+	return err
+}
+
+func (p *TCPPeer) RemoteAddr() net.Addr {
+	return p.conn.RemoteAddr()
+}
+
 func (t *TCPTransport) Consume() <-chan RPC {
 	return t.rpcch
 }
+func (t *TCPTransport) Close() error {
+	return t.listener.Close()
+}
 
-func (t *TCPTransport) ListenAndAccept() error {
-	var err error
-
-	t.listener, err = net.Listen("tcp", t.TCPTransportOpts.ListenAddress)
+func (t *TCPTransport) Dial(addr string) error {
+	conn, err := net.Dial("tcp", addr)
 	if err != nil {
 		return err
 	}
 
-	go t.startAcceptLoop()
+	go t.handleConn(conn, true)
 	return nil
+}
+
+func (t *TCPTransport) ListenAndAccept() {
+	var err error
+
+	t.listener, err = net.Listen("tcp", t.TCPTransportOpts.ListenAddress)
+	if errors.Is(err, net.ErrClosed) {
+		fmt.Println("Network connection closed")
+	}
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	go t.startAcceptLoop()
+
+	log.Printf("TCP transport listening on %s", t.TCPTransportOpts.ListenAddress)
 }
 
 func (t *TCPTransport) startAcceptLoop() {
@@ -67,18 +95,18 @@ func (t *TCPTransport) startAcceptLoop() {
 		if err != nil {
 			fmt.Printf("TCP eccept error: %s \n", err)
 		}
-		go t.handleConn(conn)
+		go t.handleConn(conn, false)
 	}
 }
 
-func (t *TCPTransport) handleConn(conn net.Conn) {
+func (t *TCPTransport) handleConn(conn net.Conn, outbound bool) {
 	var err error
 
 	defer func() {
 		fmt.Printf("Dropping the peer connection: %v", err)
 		conn.Close()
 	}()
-	peer := NewTCPPeer(conn, true)
+	peer := NewTCPPeer(conn, outbound)
 
 	if err := t.TCPTransportOpts.ShakeHands(peer); err != nil {
 		conn.Close()

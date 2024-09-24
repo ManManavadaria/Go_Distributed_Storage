@@ -15,10 +15,6 @@ import (
 
 type PathTransformFunc func(string) PathKey
 
-const (
-	Root string = "distributed_storage"
-)
-
 var CASPathTransform PathTransformFunc = func(key string) PathKey {
 	hash := sha1.Sum([]byte(key))
 
@@ -47,6 +43,7 @@ type PathKey struct {
 }
 
 type StoreOpts struct {
+	Root              string
 	PathTransformFunc PathTransformFunc
 }
 
@@ -70,14 +67,16 @@ func NewStore(str *StoreOpts) *Store {
 	}
 }
 
-func (p *PathKey) FullPath() string {
-	return fmt.Sprintf("%s/%s/%s", Root, p.PathName, p.FileName)
+func (p *PathKey) FullPath(root string) string {
+	return fmt.Sprintf("%s/%s/%s", root, p.PathName, p.FileName)
 }
 
 func (s *Store) Has(key string) bool {
 	pathkey := s.PathTransformFunc(key)
 
-	_, err := os.Stat(pathkey.FullPath())
+	// fmt.Println("\033[32m", pathkey, "\033[0m")
+
+	_, err := os.Stat(pathkey.FullPath(s.Root))
 	if errors.Is(err, fs.ErrNotExist) {
 		return false
 	}
@@ -90,15 +89,20 @@ func (s *Store) Has(key string) bool {
 	return true
 }
 
+func (s *Store) Clear() error {
+	return os.RemoveAll(s.Root)
+}
+
 func (s *Store) Delete(key string) error {
 	pathkey := s.PathTransformFunc(key)
 
 	defer func() {
-		fmt.Printf("Deleted [%s] from disk", pathkey.FullPath())
+		fmt.Printf("Deleted [%s] from disk", pathkey.FullPath(s.Root))
 	}()
 
-	return os.RemoveAll(strings.Split(pathkey.PathName, "/")[0])
-	// return os.RemoveAll(pathkey.FullPath())
+	path := s.Root + "/" + strings.Split(pathkey.PathName, "/")[0]
+
+	return os.RemoveAll(path)
 }
 
 func (s *Store) Read(key string) (io.Reader, error) {
@@ -120,7 +124,7 @@ func (s *Store) Read(key string) (io.Reader, error) {
 func (s *Store) readStream(key string) (io.ReadCloser, error) {
 	pathkey := s.PathTransformFunc(key)
 
-	f, err := os.Open(pathkey.FullPath())
+	f, err := os.Open(pathkey.FullPath(s.Root))
 	if err != nil {
 		return nil, err
 	}
@@ -131,13 +135,13 @@ func (s *Store) readStream(key string) (io.ReadCloser, error) {
 func (s *Store) writeStream(key string, r io.Reader) error {
 	pathkey := s.PathTransformFunc(key)
 
-	pathNameWithRoot := fmt.Sprintf("%s/%s", Root, pathkey.PathName)
+	pathNameWithRoot := fmt.Sprintf("%s/%s", s.Root, pathkey.PathName)
 
 	if err := os.MkdirAll(pathNameWithRoot, os.ModePerm); err != nil {
 		return err
 	}
 
-	fullpath := pathkey.FullPath()
+	fullpath := pathkey.FullPath(s.Root)
 
 	f, err := os.Create(fullpath)
 	if err != nil {

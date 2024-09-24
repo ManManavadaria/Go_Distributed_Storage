@@ -1,40 +1,44 @@
 package main
 
 import (
-	"fmt"
 	"log"
 
 	"github.com/ManManavadaria/Go_Distributed_Storage/p2p"
 )
 
-func OnPeer(p2p.Peer) error {
-	fmt.Println("Peer is online")
-	return nil
+func makeServer(listenAddr string, nodes ...string) *FileServer {
+	tcpTransportOpts := p2p.TCPTransportOpts{
+		ListenAddress: listenAddr,
+		ShakeHands:    p2p.NOPHandshakeFunc,
+		Decoder:       p2p.DefaultDecoder{},
+	}
+
+	tcpTransport := &p2p.TCPTransport{
+		TCPTransportOpts: tcpTransportOpts,
+	}
+
+	fileServerOpts := FileServerOpts{
+		ListenAddr:        ":3000",
+		StorageRoot:       "3000_network",
+		PathTransformFunc: CASPathTransform,
+		Transport:         tcpTransport,
+		BootstrapedNodes:  []string{":4000"},
+	}
+
+	f := NewFileServer(fileServerOpts)
+
+	tcpTransport.TCPTransportOpts.OnPeer = f.OnPeer
+
+	return f
 }
 
 func main() {
-
-	tcpopts := p2p.TCPTransportOpts{
-		ListenAddress: ":3000",
-		Decoder:       p2p.DefaultDecoder{},
-		ShakeHands:    p2p.NOPHandshakeFunc,
-		OnPeer:        OnPeer,
-	}
-
-	tr := p2p.NewTCPTransport(tcpopts)
+	s1 := makeServer(":4000", "")
+	s2 := makeServer(":3000", ":4000")
 
 	go func() {
-		for rpc := range tr.Consume() {
-			// Process RPC here
-			fmt.Println("Received RPC:", string(rpc.Payload))
-		}
+		log.Fatal(s1.Start())
 	}()
 
-	if err := tr.ListenAndAccept(); err != nil {
-		log.Fatal(err)
-	}
-
-	fmt.Println("hello server")
-
-	select {}
+	s2.Start()
 }
