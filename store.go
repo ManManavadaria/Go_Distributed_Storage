@@ -132,6 +132,10 @@ func (s *Store) readStream(key string) (io.ReadCloser, error) {
 	return f, nil
 }
 
+func (s *Store) Write(key string, r io.Reader) error {
+	return s.writeStream(key, r)
+}
+
 func (s *Store) writeStream(key string, r io.Reader) error {
 	pathkey := s.PathTransformFunc(key)
 

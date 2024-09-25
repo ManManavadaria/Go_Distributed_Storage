@@ -3,8 +3,7 @@ package p2p
 import "net"
 
 type Peer interface {
-	Close() error
-	RemoteAddr() net.Addr
+	net.Conn
 	Send([]byte) error
 }
 

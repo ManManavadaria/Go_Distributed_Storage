@@ -1,7 +1,10 @@
 package main
 
 import (
+	"bytes"
+	"fmt"
 	"log"
+	"time"
 
 	"github.com/ManManavadaria/Go_Distributed_Storage/p2p"
 )
@@ -13,16 +16,14 @@ func makeServer(listenAddr string, nodes ...string) *FileServer {
 		Decoder:       p2p.DefaultDecoder{},
 	}
 
-	tcpTransport := &p2p.TCPTransport{
-		TCPTransportOpts: tcpTransportOpts,
-	}
+	tcpTransport := p2p.NewTCPTransport(tcpTransportOpts)
 
 	fileServerOpts := FileServerOpts{
-		ListenAddr:        ":3000",
-		StorageRoot:       "3000_network",
+		ListenAddr:        listenAddr,
+		StorageRoot:       listenAddr + "_network",
 		PathTransformFunc: CASPathTransform,
 		Transport:         tcpTransport,
-		BootstrapedNodes:  []string{":4000"},
+		BootstrapedNodes:  nodes,
 	}
 
 	f := NewFileServer(fileServerOpts)
@@ -33,12 +34,22 @@ func makeServer(listenAddr string, nodes ...string) *FileServer {
 }
 
 func main() {
-	s1 := makeServer(":4000", "")
-	s2 := makeServer(":3000", ":4000")
+	s1 := makeServer(":3000", "")
+	s2 := makeServer(":4000", ":3000")
 
 	go func() {
 		log.Fatal(s1.Start())
 	}()
 
-	s2.Start()
+	time.Sleep(3 * time.Second)
+	go s2.Start()
+	time.Sleep(3 * time.Second)
+
+	data := bytes.NewReader([]byte("testing"))
+
+	if err := s2.StoreData("secret", data); err != nil {
+		fmt.Println("error : ", err)
+	}
+
+	select {}
 }
