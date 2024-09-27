@@ -13,6 +13,10 @@ import (
 	"github.com/ManManavadaria/Go_Distributed_Storage/p2p"
 )
 
+var (
+	Wg = sync.WaitGroup{}
+)
+
 type FileServer struct {
 	FileServerOpts
 
@@ -42,8 +46,10 @@ func NewFileServer(opts FileServerOpts) *FileServer {
 		FileServerOpts: opts,
 		Store:          *NewStore(storeOpts),
 		QuitCh:         make(chan struct{}),
+		RemoveCh:       make(chan struct{}),
 		peers:          make(map[string]p2p.Peer),
 		mu:             sync.Mutex{},
+		wg:             sync.WaitGroup{},
 	}
 }
 
@@ -170,6 +176,30 @@ func (s *FileServer) store(key string, r io.Reader) error {
 	return nil
 }
 
+type MessageRemoveFile struct {
+	Key string
+}
+
+func (s *FileServer) Remove(key string) error {
+	s.Store.Delete(key)
+
+	fmt.Printf("[%v] File (%s) removed from the local disk \n", s.Transport.Addr(), key)
+
+	msg := Message{
+		Payload: MessageRemoveFile{
+			Key: key,
+		},
+	}
+
+	Wg.Add(len(s.peers))
+	if err := s.broadCast(&msg); err != nil {
+		return err
+	}
+
+	Wg.Wait()
+	return nil
+}
+
 func (fs *FileServer) Start() error {
 	fs.Transport.ListenAndAccept()
 
@@ -236,8 +266,10 @@ func (f *FileServer) handleMessage(from string, msg *Message) error {
 
 	case MessageGetFile:
 		return f.handleMessageGetFile(from, v)
-	}
 
+	case MessageRemoveFile:
+		return f.handleMessageRemoveFile(from, v)
+	}
 	return nil
 }
 
@@ -290,6 +322,22 @@ func (f *FileServer) handleMessageStoreFile(from string, msg MessageStoreFile) e
 	peer.CloseStream()
 	return nil
 }
+func (f *FileServer) handleMessageRemoveFile(from string, msg MessageRemoveFile) error {
+	peer, ok := f.peers[from]
+	if !ok {
+		return fmt.Errorf("Peer (%s) could not be found in the peer map\n", from)
+	}
+
+	err := f.Store.Delete(msg.Key)
+	if err != nil {
+		log.Println(err)
+		return err
+	}
+	Wg.Done()
+	fmt.Printf("[%v] Removed (%v) file from the network storage\n", peer.LocalAddr(), msg.Key)
+
+	return nil
+}
 
 func (f *FileServer) Stop() {
 	close(f.QuitCh)
@@ -301,4 +349,5 @@ func init() {
 	gob.Register(DataMessage{})
 	gob.Register(MessageStoreFile{})
 	gob.Register(MessageGetFile{})
+	gob.Register(MessageRemoveFile{})
 }

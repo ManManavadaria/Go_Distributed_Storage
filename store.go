@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
-	"log"
 	"os"
 	"strings"
 )
@@ -95,8 +94,12 @@ func (s *Store) Clear() error {
 func (s *Store) Delete(key string) error {
 	pathkey := s.PathTransformFunc(key)
 
+	if ok := s.Has(key); !ok {
+		return fmt.Errorf("File does not exist in on the disk")
+	}
+
 	defer func() {
-		fmt.Printf("Deleted [%s] from disk", pathkey.FullPath(s.Root))
+		fmt.Printf("Deleted [%s] from disk \n", pathkey.FullPath(s.Root))
 	}()
 
 	path := s.Root + "/" + strings.Split(pathkey.PathName, "/")[0]
@@ -128,6 +131,27 @@ func (s *Store) Write(key string, r io.Reader) (int64, error) {
 	return s.writeStream(key, r)
 }
 
+func (s *Store) writeDecrypt(encKey []byte, key string, r io.Reader) (int64, error) {
+	pathkey := s.PathTransformFunc(key)
+
+	pathNameWithRoot := fmt.Sprintf("%s/%s", s.Root, pathkey.PathName)
+
+	if err := os.MkdirAll(pathNameWithRoot, os.ModePerm); err != nil {
+		return 0, err
+	}
+
+	fullpath := pathkey.FullPath(s.Root)
+
+	f, err := os.Create(fullpath)
+	if err != nil {
+		return 0, err
+	}
+	defer f.Close()
+
+	n, err := copyDecrypt(encKey, r, f)
+	return int64(n), err
+}
+
 func (s *Store) writeStream(key string, r io.Reader) (int64, error) {
 	pathkey := s.PathTransformFunc(key)
 
@@ -145,12 +169,5 @@ func (s *Store) writeStream(key string, r io.Reader) (int64, error) {
 	}
 	defer f.Close()
 
-	n, err := io.Copy(f, r)
-	if err != nil {
-		return 0, err
-	}
-
-	log.Printf("Written (%d) bytes to disk: %s", n, fullpath)
-
-	return n, nil
+	return io.Copy(f, r)
 }

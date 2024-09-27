@@ -49,6 +49,8 @@ func TestStore(t *testing.T) {
 			t.Errorf("want %s have %s", data, b)
 		}
 
+		r.(io.ReadCloser).Close()
+
 		if err := s.Delete(key); err != nil {
 			t.Error(err)
 		}
