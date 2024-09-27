@@ -46,10 +46,8 @@ func NewFileServer(opts FileServerOpts) *FileServer {
 		FileServerOpts: opts,
 		Store:          *NewStore(storeOpts),
 		QuitCh:         make(chan struct{}),
-		RemoveCh:       make(chan struct{}),
 		peers:          make(map[string]p2p.Peer),
 		mu:             sync.Mutex{},
-		wg:             sync.WaitGroup{},
 	}
 }
 
