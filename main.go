@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"log"
@@ -51,33 +52,24 @@ func main() {
 		log.Fatal(s3.Start())
 	}()
 
-	// store files
-
 	time.Sleep(3 * time.Second)
 
-	// for i := 0; i < 10; i++ {
-	// data := bytes.NewReader([]byte("testing"))
+	data := bytes.NewReader([]byte("testing"))
 
-	// if err := s2.store(fmt.Sprintf("secret"), data); err != nil {
-	// 	fmt.Println("error : ", err)
-	// }
+	if err := s2.store(fmt.Sprintf("secret"), data); err != nil {
+		fmt.Println("error : ", err)
+	}
 
-	// }
-
-	// read files
-
-	time.Sleep(time.Millisecond * 10000)
+	time.Sleep(time.Millisecond * 1000)
 	_, r, err := s2.Get("secret")
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	fmt.Println("started reading")
 	b, err := io.ReadAll(r)
 	if err != nil {
 		log.Fatal(err)
 	}
-	fmt.Println("started completed")
 
 	if rc, ok := r.(io.ReadCloser); ok {
 		defer rc.Close()
@@ -86,9 +78,9 @@ func main() {
 
 	// remove files
 
-	// time.Sleep(time.Second * 5)
+	// 	time.Sleep(time.Second * 10)
 
-	// if err := s2.Remove("secret"); err != nil {
-	// 	log.Fatal(err)
-	// }
+	// 	if err := s2.Remove("secret"); err != nil {
+	// 		log.Fatal(err)
+	// 	}
 }

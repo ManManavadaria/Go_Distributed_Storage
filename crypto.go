@@ -6,7 +6,6 @@ import (
 	"crypto/md5"
 	"crypto/rand"
 	"encoding/hex"
-	"fmt"
 	"io"
 )
 
@@ -36,28 +35,9 @@ func copyEncrypt(key []byte, src io.Reader, dst io.Writer) (int, error) {
 		return 0, err
 	}
 
-	var (
-		buf    = make([]byte, 32*1024)
-		stream = cipher.NewCTR(block, iv)
-	)
+	stream := cipher.NewCTR(block, iv)
 
-	for {
-		n, err := src.Read(buf)
-		fmt.Println("buf inside the copyEncrypt ---> ", string(buf))
-		if n > 0 {
-			stream.XORKeyStream(buf, buf[:n])
-			if _, err := dst.Write(buf[:n]); err != nil {
-				return 0, err
-			}
-		}
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			return 0, err
-		}
-	}
-	return 0, err
+	return copyStream(stream, block.BlockSize(), src, dst)
 }
 
 func copyDecrypt(key []byte, src io.Reader, dst io.Writer) (int, error) {
@@ -72,12 +52,16 @@ func copyDecrypt(key []byte, src io.Reader, dst io.Writer) (int, error) {
 		return 0, err
 	}
 
-	var (
-		buf    = make([]byte, 32*1024)
-		stream = cipher.NewCTR(block, iv)
-		nw     = block.BlockSize()
-	)
+	stream := cipher.NewCTR(block, iv)
 
+	return copyStream(stream, block.BlockSize(), src, dst)
+}
+
+func copyStream(stream cipher.Stream, blockSize int, src io.Reader, dst io.Writer) (int, error) {
+	var (
+		buf = make([]byte, 32*1024)
+		nw  = blockSize
+	)
 	for {
 		n, err := src.Read(buf)
 		if n > 0 {
@@ -95,5 +79,5 @@ func copyDecrypt(key []byte, src io.Reader, dst io.Writer) (int, error) {
 			return 0, err
 		}
 	}
-	return nw, err
+	return nw, nil
 }
