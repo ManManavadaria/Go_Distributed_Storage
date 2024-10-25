@@ -210,17 +210,25 @@ func (fs *FileServer) Start() error {
 }
 
 func (f *FileServer) bootStarpNetwork() error {
+	var wg sync.WaitGroup
 	for _, addr := range f.BootstrapedNodes {
 		if len(f.BootstrapedNodes) == 0 {
 			continue
 		}
 
+		wg.Add(1)
 		go func(addr string) {
-			if err := f.Transport.Dial(addr); err != nil {
-				log.Println(err)
+			for {
+				if err := f.Transport.Dial(addr); err != nil {
+					time.Sleep(time.Second * 5)
+				} else {
+					break
+				}
 			}
+			wg.Done()
 		}(addr)
 	}
+	wg.Wait()
 	return nil
 }
 
@@ -246,7 +254,7 @@ func (f *FileServer) Loop() {
 		case rpc := <-f.Transport.Consume():
 			var message Message
 			if err := gob.NewDecoder(bytes.NewReader(rpc.Payload)).Decode(&message); err != nil {
-				fmt.Println("decode error:", err)
+				log.Fatal(err)
 			}
 
 			if err := f.handleMessage(rpc.From.String(), &message); err != nil {

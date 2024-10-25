@@ -95,7 +95,7 @@ func (s *Store) Delete(key string) error {
 	pathkey := s.PathTransformFunc(key)
 
 	if ok := s.Has(key); !ok {
-		return fmt.Errorf("File does not exist in on the disk")
+		return nil
 	}
 
 	defer func() {

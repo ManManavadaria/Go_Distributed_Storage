@@ -7,7 +7,6 @@ import (
 	"io"
 	"log"
 	"strings"
-	"time"
 
 	"github.com/ManManavadaria/Go_Distributed_Storage/p2p"
 )
@@ -44,79 +43,107 @@ func makeServer(listenAddr string, nodes ...string) *FileServer {
 	return f
 }
 
+type Command struct {
+	Action  string
+	Key     string
+	Content string
+}
+
 func main() {
-	actions := flag.String("actions", "write", "Comma-separated actions to perform: read, write, remove")
-	fileName := flag.String("file", "secret", "Name of the file to read/write/remove")
-	content := flag.String("content", "testing", "Content to write (used for write action)")
+
+	port := flag.String("port", "", "Server port address")
+	nodes := flag.String("nodes", "", "Remote nodes to connect the current node")
 
 	flag.Parse()
 
+	validatePortAddr(*port)
+	nodeList := extractAndValidateNodes(*nodes)
+
+	commandChan := make(chan Command)
+	doneProcess := make(chan bool)
+
 	fmt.Printf("\n\033[34mNode Initialization and Bootstrap Process =======>\033[0m\n")
-
-	// Initialize three FileServer instances on different ports
-	s1 := makeServer(":3000", "")               // First server with no bootstrap nodes
-	s2 := makeServer(":4000", ":3000")          // Second server bootstraps to the first server
-	s3 := makeServer(":5000", ":4000", ":3000") // Third server bootstraps to the first and second servers
-
-	// Start the first server in a separate goroutine
-	go func() {
-		log.Fatal(s1.Start())
-	}()
-
-	// Wait for the first server to initialize
-	time.Sleep(3 * time.Second)
-
-	// Start the second server in a separate goroutine
-	go s2.Start()
-
-	// Wait for the second server to initialize
-	time.Sleep(3 * time.Second)
+	s := makeServer(*port, nodeList...)
 
 	go func() {
-		log.Fatal(s3.Start())
+		log.Fatal(s.Start())
 	}()
 
-	time.Sleep(3 * time.Second)
+	go processCommands(s, commandChan, doneProcess)
 
-	actionList := strings.Split(*actions, ",")
-	for _, action := range actionList {
-		action = strings.TrimSpace(action)
-		switch action {
+	for {
+		var input string
+		fmt.Print("Enter command (format: action,key,content): ")
+		fmt.Scanln(&input)
 
+		parts := strings.SplitN(input, ",", 3)
+		if len(parts) < 2 {
+			fmt.Println("Invali commadnd format. Please use: action,key,content (content is optional for write)")
+			continue
+		}
+
+		action := strings.TrimSpace(parts[0])
+		key := strings.TrimSpace(parts[1])
+		content := ""
+		if action == "write" && len(parts) == 3 {
+			content = strings.TrimSpace(parts[2])
+		}
+		commandChan <- Command{Action: action, Key: key, Content: content}
+		<-doneProcess
+	}
+}
+
+func processCommands(s *FileServer, commandChan chan Command, done chan bool) {
+	for command := range commandChan {
+		switch command.Action {
 		case "write":
-			fmt.Printf("\n\033[34mFile Storage Process =======>\033[0m\n")
-			data := bytes.NewReader([]byte(*content))
-
-			if err := s2.store(*fileName, data); err != nil {
+			fmt.Printf("\n\033[34mWriting File =======>\033[0m\n")
+			data := bytes.NewReader([]byte(command.Content))
+			if err := s.store(command.Key, data); err != nil {
 				fmt.Println("error : ", err)
 			}
 
 		case "read":
-			fmt.Printf("\n\033[34mFile Reading Process =======>\033[0m\n")
-			time.Sleep(time.Second * 3)
-			_, r, err := s2.Get(*fileName)
+			fmt.Printf("\n\033[34mReading File =======>\033[0m\n")
+			_, r, err := s.Get(command.Key)
 			if err != nil {
 				log.Fatal(err)
 			}
-
-			// Read all data from the retrieved reader
 			b, err := io.ReadAll(r)
 			if err != nil {
 				log.Fatal(err)
 			}
-
 			if rc, ok := r.(io.ReadCloser); ok {
 				rc.Close()
 			}
-			fmt.Printf("\n\033[33mContent of file \033[1m%s\033[0m: \033[32m%s\033[0m\n", *fileName, string(b))
+			fmt.Printf("\nContent of file %s: %s\n", command.Key, string(b))
 
-			// To remove the stored files from each nodes
 		case "remove":
-			fmt.Printf("\n\033[34mFile Deletion Process =======>\033[0m\n")
-			time.Sleep(time.Second * 3)
-			if err := s2.Remove(*fileName); err != nil {
+			fmt.Printf("\n\033[34mRemoving File =======>\033[0m\n")
+			if err := s.Remove(command.Key); err != nil {
 				log.Fatal(err)
 			}
+		default:
+			fmt.Println("Invalid command")
 		}
+		done <- true
 	}
+}
+
+func validatePortAddr(port string) {
+	if len(port) == 0 && !strings.HasPrefix(port, ":") {
+		log.Fatal("Invalid port argument.", port)
+	}
+}
+
+func extractAndValidateNodes(nodes string) []string {
+	if len(nodes) == 0 {
+		log.Fatal("Invalid nodes")
+	}
+	nodeList := strings.Split(nodes, ",")
+	for i, node := range nodeList {
+		nodeList[i] = strings.TrimSpace(node)
+		validatePortAddr(nodeList[i])
+	}
+	return nodeList
 }
