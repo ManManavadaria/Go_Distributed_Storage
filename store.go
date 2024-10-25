@@ -107,7 +107,7 @@ func (s *Store) Delete(key string) error {
 	return os.RemoveAll(path)
 }
 
-func (s *Store) Read(key string) (int64, io.Reader, error) {
+func (s *Store) Read(key string) (int64, io.ReadCloser, error) {
 	return s.readStream(key)
 }
 
@@ -157,5 +157,6 @@ func (s *Store) writeStream(key string, r io.Reader) (int64, error) {
 		return 0, err
 	}
 
+	defer f.Close()
 	return io.Copy(f, r)
 }

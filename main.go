@@ -2,9 +2,11 @@ package main
 
 import (
 	"bytes"
+	"flag"
 	"fmt"
 	"io"
 	"log"
+	"strings"
 	"time"
 
 	"github.com/ManManavadaria/Go_Distributed_Storage/p2p"
@@ -43,6 +45,14 @@ func makeServer(listenAddr string, nodes ...string) *FileServer {
 }
 
 func main() {
+	actions := flag.String("actions", "write", "Comma-separated actions to perform: read, write, remove")
+	fileName := flag.String("file", "secret", "Name of the file to read/write/remove")
+	content := flag.String("content", "testing", "Content to write (used for write action)")
+
+	flag.Parse()
+
+	fmt.Printf("\n\033[34mNode Initialization and Bootstrap Process =======>\033[0m\n")
+
 	// Initialize three FileServer instances on different ports
 	s1 := makeServer(":3000", "")               // First server with no bootstrap nodes
 	s2 := makeServer(":4000", ":3000")          // Second server bootstraps to the first server
@@ -68,35 +78,45 @@ func main() {
 
 	time.Sleep(3 * time.Second)
 
-	data := bytes.NewReader([]byte("testing"))
+	actionList := strings.Split(*actions, ",")
+	for _, action := range actionList {
+		action = strings.TrimSpace(action)
+		switch action {
 
-	if err := s2.store(fmt.Sprintf("secret"), data); err != nil {
-		fmt.Println("error : ", err)
+		case "write":
+			fmt.Printf("\n\033[34mFile Storage Process =======>\033[0m\n")
+			data := bytes.NewReader([]byte(*content))
+
+			if err := s2.store(*fileName, data); err != nil {
+				fmt.Println("error : ", err)
+			}
+
+		case "read":
+			fmt.Printf("\n\033[34mFile Reading Process =======>\033[0m\n")
+			time.Sleep(time.Second * 3)
+			_, r, err := s2.Get(*fileName)
+			if err != nil {
+				log.Fatal(err)
+			}
+
+			// Read all data from the retrieved reader
+			b, err := io.ReadAll(r)
+			if err != nil {
+				log.Fatal(err)
+			}
+
+			if rc, ok := r.(io.ReadCloser); ok {
+				rc.Close()
+			}
+			fmt.Printf("\n\033[33mContent of file \033[1m%s\033[0m: \033[32m%s\033[0m\n", *fileName, string(b))
+
+			// To remove the stored files from each nodes
+		case "remove":
+			fmt.Printf("\n\033[34mFile Deletion Process =======>\033[0m\n")
+			time.Sleep(time.Second * 3)
+			if err := s2.Remove(*fileName); err != nil {
+				log.Fatal(err)
+			}
+		}
 	}
-
-	time.Sleep(time.Millisecond * 1000)
-
-	_, r, err := s2.Get("secret")
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	// Read all data from the retrieved reader
-	b, err := io.ReadAll(r)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	if rc, ok := r.(io.ReadCloser); ok {
-		defer rc.Close()
-	}
-
-	fmt.Println(string(b))
-
-	// To remove the stored files from each nodes
-
-	// time.Sleep(time.Second * 10)
-	// if err := s2.Remove("secret"); err != nil {
-	// 	log.Fatal(err)
-	// }
 }
