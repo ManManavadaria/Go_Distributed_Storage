@@ -1,11 +1,13 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"flag"
 	"fmt"
 	"io"
 	"log"
+	"os"
 	"strings"
 
 	"github.com/ManManavadaria/Go_Distributed_Storage/p2p"
@@ -71,14 +73,19 @@ func main() {
 
 	go processCommands(s, commandChan, doneProcess)
 
+	reader := bufio.NewReader(os.Stdin)
 	for {
-		var input string
 		fmt.Print("Enter command (format: action,key,content): ")
-		fmt.Scanln(&input)
+		input, err := reader.ReadString('\n')
+		if err != nil {
+			fmt.Println("Error reading input:", err)
+			continue
+		}
+		input = strings.TrimSpace(input)
 
 		parts := strings.SplitN(input, ",", 3)
 		if len(parts) < 2 {
-			fmt.Println("Invali commadnd format. Please use: action,key,content (content is optional for write)")
+			fmt.Println("Invalid command format. Please use: action,key,content (content is optional for write)")
 			continue
 		}
 

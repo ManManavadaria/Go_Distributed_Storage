@@ -64,6 +64,10 @@ func copyStream(stream cipher.Stream, blockSize int, src io.Reader, dst io.Write
 	)
 	for {
 		n, err := src.Read(buf)
+		if err != nil && err != io.EOF {
+			return 0, err
+		}
+
 		if n > 0 {
 			stream.XORKeyStream(buf, buf[:n])
 			nn, err := dst.Write(buf[:n])
@@ -72,12 +76,14 @@ func copyStream(stream cipher.Stream, blockSize int, src io.Reader, dst io.Write
 			}
 			nw += nn
 		}
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			return 0, err
+		if n == 0 {
+			if err == io.EOF {
+				break
+			}
+			continue
 		}
 	}
 	return nw, nil
 }
+
+//NOTE: issue : getting one extra byte while reading for the second time over the peer

@@ -303,7 +303,10 @@ func (f *FileServer) handleMessageGetFile(from string, msg MessageGetFile) error
 	}
 
 	peer.Send([]byte{p2p.IncomingStream})
-	binary.Write(peer, binary.LittleEndian, fileSize)
+	err = binary.Write(peer, binary.LittleEndian, fileSize)
+	if err != nil {
+		log.Fatal(err)
+	}
 	n, err := io.Copy(peer, r)
 	if err != nil {
 		return err

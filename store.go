@@ -148,6 +148,7 @@ func (s *Store) writeDecrypt(encKey []byte, key string, r io.Reader) (int64, err
 	}
 
 	n, err := copyDecrypt(encKey, r, f)
+	defer f.Close()
 	return int64(n), err
 }
 
