@@ -1,49 +1,55 @@
-# Distributed File Storage System
+# Go Distributed File Storage System
 
-A decentralized file storage system implemented in Go, demonstrating peer-to-peer networking, encryption, and distributed systems concepts.
+A robust distributed file storage system implemented in Go, featuring peer-to-peer networking, encryption, and distributed storage capabilities.
 
 ## Overview
 
-This project implements a distributed file storage system where multiple nodes can store, retrieve, and remove files across a network. Each node can act both as a client and a server, enabling true peer-to-peer file sharing with built-in encryption for security.
+This project implements a sophisticated distributed file storage system where multiple nodes work together to store, retrieve, and manage files across a network. Each node functions as both client and server, creating a true peer-to-peer network with built-in encryption for security.
 
 ### Key Features
 
-- 🔗 Peer-to-peer architecture
-- 🔒 End-to-end encryption of stored files
-- 📁 Content-addressable storage
-- 🔄 Automatic file replication across nodes
-- 🚀 TCP-based transport layer
-- 🔍 Distributed file retrieval
+- 🔗 Peer-to-peer architecture with dynamic node discovery
+- 🔒 AES encryption for secure file storage
+- 📁 Content-addressable storage using SHA-1 and MD5 hashing
+- 🔄 Automatic file distribution across network nodes
+- 🚀 Custom TCP-based transport layer
+- 🔍 Distributed file retrieval with streaming support
+- ⚡ Non-blocking concurrent operations
+- 🔐 Secure file removal across the network
 
-## Code Structure
+## System Architecture
 
-The project consists of several key components:
+The project is organized into several core components:
 
 ### Main Application (`main.go`)
-- Sets up and initializes multiple file server instances
-- Demonstrates file storage, retrieval, and removal operations
-- Creates a network of interconnected nodes
+- Initializes server instances with customizable configurations
+- Processes user commands through an interactive CLI
+- Manages node bootstrapping and peer connections
+- Implements command validation and processing
 
 ### File Server (`server.go`)
-- Implements the core file server functionality
-- Handles peer connections and message routing
-- Manages file operations across the network
+- Handles core distributed storage operations
+- Manages peer-to-peer message routing
+- Implements file streaming and chunked transfer
+- Coordinates network-wide file operations
 
 ### Storage Layer (`store.go`)
-- Provides abstractions for file storage and retrieval
-- Implements content-addressable storage using SHA-1 hashing
-- Manages the local file system for each node
+- Provides content-addressable storage
+- Manages local file system operations
+- Implements path transformation and file handling
+- Supports atomic file operations
 
 ### Cryptography (`crypto.go`)
-- Handles encryption and decryption of files
-- Implements secure key generation
-- Provides utilities for hashing and stream encryption
+- Implements AES-CTR encryption
+- Provides secure key generation
+- Handles stream-based encryption/decryption
+- Includes MD5 hashing for file identification
 
-### P2P Networking Package (`p2p/`)
-- **TCP Transport** (`tcp_transport.go`): Implements TCP-based peer-to-peer communication
-- **Message Handling** (`message.go`): Defines RPC structures for inter-node communication
-- **Encoding** (`encoding.go`): Implements message encoding/decoding
-- **Handshake** (`handshake.go`): Defines connection handshake protocols
+### P2P Networking (`p2p/`)
+- **TCP Transport**: Custom implementation for peer communication
+- **Message Handling**: Defines RPC structures and protocols
+- **Stream Processing**: Supports large file transfers
+- **Connection Management**: Handles peer lifecycle
 
 ## Installation
 
@@ -51,89 +57,143 @@ The project consists of several key components:
 - Go 1.16 or higher
 - Git
 
-### Steps
-
-1. Clone the repository:
+### Setup
 ```bash
-git clone https://github.com/yourusername/go-distributed-storage.git
-cd go-distributed-storage
-```
+# Clone the repository
+git clone https://github.com/ManManavadaria/Go_Distributed_Storage.git
+cd Go_Distributed_Storage
 
-2. Install dependencies:
-```bash
+# Install dependencies
 go mod download
 ```
 
 ## Usage
 
-### Running the System
+### Build
+1. For Windows:
+```bash
+go build -o dfss-build.exe
+```
+
+2. For other OS:
+```bash
+go build -o dfss-build
+```
+
+### Starting the Network
 
 1. Start the first node:
 ```bash
-go run . -port 3000
+./dfss-build.exe -port :3000 -nodes :4000,:5000
 ```
 
-2. In separate terminal windows, start additional nodes:
+2. Start additional nodes:
 ```bash
-go run . -port 4000
-go run . -port 5000
+./dfss-build.exe -port :4000 -nodes :3000,:5000
+./dfss-build.exe -port :5000 -nodes :4000,:3000
 ```
 
-### Basic Operations
+### Command Interface
 
-#### Storing a File
-```go
-// Example from main.go
-data := bytes.NewReader([]byte("testing"))
-err := server.Store("myfile", data)
+The system provides an interactive command interface with the following format:
+```
+action,key,content
 ```
 
-#### Retrieving a File
-```go
-// Example from main.go
-_, reader, err := server.Get("myfile")
-if err != nil {
-    log.Fatal(err)
-}
+Available commands:
+
+1. **Write a file**:
+```
+write,filename,content
 ```
 
-#### Removing a File
-```go
-// Example from main.go
-err := server.Remove("myfile")
+2. **Read a file**:
+```
+read,filename
 ```
 
-## Implementation Details
+3. **Remove a file**:
+```
+remove,filename
+```
 
-### File Storage
-Files are stored using a content-addressable system. The `CASPathTransform` function in `store.go` generates a unique path for each file based on its content:
+### Implementation Details
+
+#### File Storage Mechanism
+
+Files are stored using a content-addressable system with a sophisticated path transformation:
 
 ```go
-var CASPathTransform PathTransformFunc = func(key string) PathKey {
+func CASPathTransform(key string) PathKey {
     hash := sha1.Sum([]byte(key))
     hashStr := hex.EncodeToString(hash[:])
-    // ... path generation logic
+    blockSize := 5
+    sliceLen := len(hashStr) / blockSize
+    paths := make([]string, sliceLen)
+    
+    for i := 0; i < sliceLen; i++ {
+        from, to := i*blockSize, (i*blockSize)+blockSize
+        paths[i] = hashStr[from:to]
+    }
+    
+    return PathKey{
+        PathName: strings.Join(paths, "/"),
+        FileName: hashStr,
+    }
 }
 ```
 
-### Encryption
-Files are automatically encrypted before storage and decrypted upon retrieval:
+#### Encryption System
+
+The system uses AES-CTR mode encryption with streaming support:
 
 ```go
 func copyEncrypt(key []byte, src io.Reader, dst io.Writer) (int, error) {
     block, err := aes.NewCipher(key)
-    // ... encryption logic
+    // ... encryption setup
+    stream := cipher.NewCTR(block, iv)
+    return copyStream(stream, block.BlockSize(), src, dst)
 }
 ```
 
-### Network Communication
-The system uses a custom TCP transport layer for peer-to-peer communication:
+#### Network Communication
+
+Messages between nodes are handled through a custom RPC system:
 
 ```go
-type TCPTransport struct {
-    TCPTransportOpts
-    listener net.Listener
-    rpcch    chan RPC
-    // ... other fields
+type Message struct {
+    From    string
+    Payload any
+}
+
+type MessageStoreFile struct {
+    Key  string
+    Size int
 }
 ```
+
+## Features in Detail
+
+### Automatic Node Discovery
+- Nodes automatically connect to existing peers
+- Dynamic peer management with concurrent connection handling
+- Graceful connection lifecycle management
+
+### Secure File Operations
+- End-to-end encryption for all stored files
+- Secure key generation and management
+- Stream-based encryption for efficient memory usage
+
+### Distributed Storage
+- Content-addressable storage with SHA-1 hashing
+- Automatic file replication across nodes
+- Concurrent file operations handling
+
+### Error Handling
+- Robust error management for network operations
+- Graceful degradation on node failures
+- Comprehensive error reporting
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
